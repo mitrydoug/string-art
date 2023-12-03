@@ -1,4 +1,6 @@
 jupyter
 ipycanvas
-
+matplotlib
+pillow
 pip-tools
+torch
