@@ -1,3 +1,8 @@
 /.venv
 *.jpg
+*.jpeg
+*.png
 __pycache__
+.ipynb_checkpoints
+
+/src/masks
