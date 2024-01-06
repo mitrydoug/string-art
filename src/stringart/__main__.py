@@ -11,8 +11,8 @@ from matplotlib import pyplot as plt
 
 from .gen_mask import mask_path
 
-LEARNING_RATE = 1e-6
-MAX_EPOCHS = 10
+LEARNING_RATE = 1e-4
+MAX_EPOCHS = 20
 
 
 def load_image(fname, height, width):
@@ -45,34 +45,40 @@ def compute_strings(
     influence = influence[~zeroes]
     Y = Y[~zeroes]
 
-    model = torch.nn.Linear(connections, 1, bias=False)
+    # influence_tensor = 
+
+    weights = torch.nn.parameter.Parameter(torch.zeros((connections,)))
     dataset = torch.utils.data.TensorDataset(
         torch.tensor(influence, dtype=torch.float), torch.tensor(Y, dtype=torch.float)
     )
     dataloader = torch.utils.data.DataLoader(dataset)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = torch.optim.Adam([weights], lr=LEARNING_RATE)
 
     for epoch in range(MAX_EPOCHS):
         print(f"Starting epoch {epoch}.")
         losses = []
         for batch in dataloader:
             x, y = batch
-            y_hat = model(x[0])
-            loss = torch.nn.functional.mse_loss(y, y_hat)
+            pos_weights = torch.nn.functional.softplus(weights, beta=20)
+            # print(pos_weights)
+            # print(x[0][x[0] > 0])
+            y_hat = torch.dot(pos_weights, x[0])
+            # print((y, y_hat))
+            loss = torch.nn.functional.mse_loss(y_hat, y[0])
             losses.append(loss.item())
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            with torch.no_grad():
-                for parameter in model.parameters():
-                    parameter.clamp_(0)
+            # with torch.no_grad():
+            #     for parameter in model.parameters():
+            #         parameter.clamp_(0)
 
         mean_loss = np.mean(losses)
         print(f"Epoch {epoch} complete. Mean loss {mean_loss}")
 
-    return model.weight.data.numpy()
+    return weights.data.numpy()
 
 
 def parse_args():
