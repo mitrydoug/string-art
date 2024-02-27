@@ -1,4 +1,3 @@
-
 import argparse
 import os
 import sys
@@ -11,7 +10,11 @@ from .utils import chord_dist, dist, nail_point
 
 
 def mask_path(height, width, num_nails, max_dist):
-    return join("masks", f"mask_h={height}_w={width}_numnails={num_nails}_maxdist={max_dist}.npy")
+    return join(
+        "masks",
+        f"mask_h={height}_w={width}_numnails={num_nails}_maxdist={max_dist}.npy",
+    )
+
 
 def _connection_idx(m, n, num_nails):
     # (t-1) + (t-2) + ... + (t-m) + n
@@ -38,7 +41,7 @@ def compute_dist_mask(width, height, num_nails, max_dist) -> np.ndarray:
         mark = 1
         for m in range(num_nails):
             # print(f"m={m}")
-            n = max(mark, m+1)
+            n = max(mark, m + 1)
             while (
                 n < num_nails
                 and chord_dist(
@@ -68,7 +71,7 @@ def compute_dist_mask(width, height, num_nails, max_dist) -> np.ndarray:
                     sys.exit(0)
                 d[(pixel_idx, conn_idx)] = (i, j, m, n)
 
-                X[pixel_idx, conn_idx] += cdist
+                X[pixel_idx, conn_idx] += 1 - cdist / max_dist
                 n += 1
 
     return X
@@ -95,6 +98,7 @@ def main():
     with open(mask_fp, "wb") as f:
         print(f"Saving mask: {mask_fp}")
         np.save(f, x)
+
 
 if __name__ == "__main__":
     main()

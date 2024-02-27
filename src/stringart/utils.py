@@ -22,9 +22,9 @@ def chord_dist(a: Point, b: Point, c: Point) -> float:
     bx, by = b
     cx, cy = c
 
-    if ay == by:
+    if abs(ay-by) < 1e-4:
         return abs(cy - ay)
-    if ax == bx:
+    if abs(ax-bx) < 1e-4:
         return abs(cx - ax)
 
     ab_slope = (by - ay) / (bx - ax)

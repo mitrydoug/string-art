@@ -10,9 +10,10 @@ from PIL import Image
 from matplotlib import pyplot as plt
 
 from .gen_mask import mask_path
+from .utils import dist
 
 LEARNING_RATE = 1e-4
-MAX_EPOCHS = 20
+MAX_EPOCHS = 200
 
 
 def load_image(fname, height, width):
@@ -22,6 +23,33 @@ def load_image(fname, height, width):
         img.save(f)
 
     return plt.imread("grayscale.png")
+
+
+def compute_strings_baseline(
+    image: np.array,
+    influence: np.array,
+    num_nails: int,
+) -> np.array:
+    img_H, img_W = image.shape
+    print(image.shape)
+    print(influence.shape)
+
+    print(np.count_nonzero(influence))
+
+    non_zero = np.count_nonzero(influence, axis=0)
+    print(non_zero.shape)
+    print(np.min(non_zero))
+    print(np.count_nonzero(non_zero))
+
+    image = image.reshape((img_H * img_W, 1))
+    influence = image * influence
+
+    print(influence.shape)
+
+    weights = np.sum(influence, axis=0) / (non_zero + 1e-9)
+    print(weights.shape)
+
+    return weights
 
 
 def compute_strings(
@@ -39,32 +67,46 @@ def compute_strings(
     print(f"Image shape: {img_H} x {img_W}")
     connections = (num_nails - 1) * num_nails // 2
 
-    Y = image.reshape(img_H * img_W)
+    focus = np.array([1 if dist((j / img_W, 1 - i / img_H), (0.5, 0.5)) < 0.2 else 0.2 for j in range(img_W) for i in range(img_H)])
+
+    T = np.stack((image.reshape(img_H * img_W), focus), axis=1)
 
     zeroes = np.all(influence == 0, axis=1)
     influence = influence[~zeroes]
-    Y = Y[~zeroes]
+    T = T[~zeroes]
 
-    # influence_tensor = 
+    influence_tensor = torch.tensor(influence, dtype=torch.float)
+    # nz = np.count_nonzero(influence, 0)
+    # adjustment = torch.tensor(1/(nz - nz.min() + 1), dtype=torch.float)
 
     weights = torch.nn.parameter.Parameter(torch.zeros((connections,)))
     dataset = torch.utils.data.TensorDataset(
-        torch.tensor(influence, dtype=torch.float), torch.tensor(Y, dtype=torch.float)
+        influence_tensor, torch.tensor(T, dtype=torch.float)
     )
-    dataloader = torch.utils.data.DataLoader(dataset)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=64)
     optimizer = torch.optim.Adam([weights], lr=LEARNING_RATE)
+
+    lambda_1 = 0 # 1e-5
 
     for epoch in range(MAX_EPOCHS):
         print(f"Starting epoch {epoch}.")
         losses = []
         for batch in dataloader:
-            x, y = batch
+            x, t = batch
+            y = t[:,0]
+            f = t[:,1]
+            # print(x)
+            # print(y.shape)
+            # sys.exit(0)
             pos_weights = torch.nn.functional.softplus(weights, beta=20)
             # print(pos_weights)
             # print(x[0][x[0] > 0])
-            y_hat = torch.dot(pos_weights, x[0])
+            y_hat = torch.matmul(x, pos_weights)
+            # print(y_hat)
+            # sys.exit(0)
             # print((y, y_hat))
-            loss = torch.nn.functional.mse_loss(y_hat, y[0])
+            pixel_loss = f * torch.nn.functional.mse_loss(y_hat, y)
+            loss = pixel_loss.mean() + lambda_1 * torch.norm(pos_weights, 1)
             losses.append(loss.item())
 
             optimizer.zero_grad()
@@ -97,7 +139,7 @@ def main():
 
     mask_fp = mask_path(args.height, args.width, args.num_nails, args.max_dist)
     if not exists(mask_fp):
-        print("Mask does not exist: {mask_fn}")
+        print(f"Mask does not exist: {mask_fn}")
         sys.exit(1)
 
     with open(mask_fp, "rb") as f:

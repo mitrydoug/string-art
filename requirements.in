@@ -1,6 +1,7 @@
 jupyter
 ipycanvas
 matplotlib
+pandas
 pillow
 pip-tools
 torch
