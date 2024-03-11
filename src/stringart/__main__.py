@@ -1,4 +1,5 @@
 import argparse
+import random
 import sys
 from os.path import exists
 from typing import Callable
@@ -8,12 +9,15 @@ import tempfile
 import torch
 from PIL import Image
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from .gen_mask import mask_path
-from .utils import dist
+from .utils import dist, connection_idx
 
 LEARNING_RATE = 1e-4
 MAX_EPOCHS = 200
+
+PEG_FRAC=0.2277
 
 
 def load_image(fname, height, width):
@@ -23,6 +27,144 @@ def load_image(fname, height, width):
         img.save(f)
 
     return plt.imread("grayscale.png")
+
+
+def compute_strings_discrete(
+    image: np.array,
+    influence: np.array,
+    num_nails: int,
+):
+
+    def normalize(arr, min, max):
+        return (arr - min) / (max - min)
+
+    def loss(img, simg):
+        return np.where(img >= 0, (img - simg) ** 2, 0).sum()
+    
+    def argmin(d):
+        m = min(d.items(), key=(lambda t: t[1]))
+        return m[0]
+
+    MAX_STRINGS=2800
+
+    num_connections = (num_nails - 1) * num_nails // 2
+    nonzero = {
+        i: np.nonzero(influence[:,i])[0] for i in range(num_connections)
+    }
+    print(len(nonzero[100]))
+    print(nonzero[100])
+
+    # normalize image
+    img_H, img_W = image.shape
+    image = image.reshape(img_H * img_W)
+    imin = image[image >=0].min()
+    image = np.where(image >= 0, (image - imin) / (image.max() - imin), image)
+
+    num_strings = int(0.8 * MAX_STRINGS)
+    idxs = set(range(num_connections))
+    one_idxs = random.sample(sorted(idxs), num_strings)
+    weights = np.zeros(num_connections)
+    weights[one_idxs] = 1
+
+    nails = [(m, n) for m in range(num_nails - 1) for n in range(m + 1, num_nails)]
+    improving = True
+
+    strimg = np.matmul(influence, weights)
+    smin = strimg.min()
+    smax = strimg.max()
+    curr_loss = loss(image, normalize(strimg, smin, smax))
+    print(f"Starting optimizer. loss={curr_loss}, num_strings={weights.sum()}")
+
+    epoch = 0
+
+    while improving:
+
+        epoch += 1
+        improving = False
+        random.shuffle(nails)
+        one_deltas = dict()
+        zero_deltas = dict()
+
+        for m, n in tqdm(nails, total=len(nails)):
+            idx = connection_idx(m, n, num_nails)
+            # 1 if weights[idx] == 0 else -1
+            sign = 1 - 2 * weights[idx]
+
+            # compute change in loss
+            irow = image[nonzero[idx]]
+            srow = strimg[nonzero[idx]]
+            before = loss(irow, normalize(srow, smin, smax))
+            srow += sign * influence[nonzero[idx],idx]
+            _smin = min(smin, srow.min())
+            _smax = max(smax, srow.max())
+            after = loss(irow, normalize(srow, _smin, _smax))
+            delta = after - before
+
+            if sign < 0:
+                one_deltas[idx] = delta
+            else:
+                zero_deltas[idx] = delta
+
+            cand_one = argmin(one_deltas) if one_deltas else None
+            cand_zero = argmin(zero_deltas) if zero_deltas else None
+
+            if cand_one and one_deltas[cand_one] < 0:
+                # remove string
+                weights[cand_one] = 0
+                strimg[nonzero[cand_one]] -= influence[nonzero[cand_one],cand_one]
+                smin = strimg.min()
+                smax = strimg.max()
+                num_strings -= 1
+                one_deltas.clear()
+                zero_deltas.clear()
+                improving = True
+
+            elif cand_zero and zero_deltas[cand_zero] < 0 and num_strings < MAX_STRINGS:
+                # add string
+                weights[cand_zero] = 1
+                strimg[nonzero[cand_zero]] +=  influence[nonzero[cand_zero],cand_zero]
+                smin = strimg.min()
+                smax = strimg.max()
+                num_strings += 1
+                one_deltas.clear()
+                zero_deltas.clear()
+                improving = True
+
+            elif cand_one and cand_zero and one_deltas[cand_one] + zero_deltas[cand_zero] < 0:
+
+                weights[cand_one] = 0
+                weights[cand_zero] = 1
+
+                # compute change in loss
+                before = loss(image, normalize(strimg, smin, smax))
+                strimg[nonzero[cand_one]] -= influence[nonzero[cand_one],cand_one]
+                strimg[nonzero[cand_zero]] +=  influence[nonzero[cand_zero],cand_zero]
+                smin = strimg.min()
+                smax = strimg.max()
+                after = loss(image, normalize(strimg, smin, smax))
+
+                if after > before:
+                    # undo everything
+                    weights[cand_one] = 1
+                    weights[cand_zero] = 0
+                    strimg[nonzero[cand_one]] += influence[nonzero[cand_one],cand_one]
+                    strimg[nonzero[cand_zero]] -=  influence[nonzero[cand_zero],cand_zero] 
+                    smin = strimg.min()
+                    smax = strimg.max()
+                
+                else:
+                    one_deltas.clear()
+                    zero_deltas.clear()
+                    improving = True
+                
+
+        curr_loss = loss(image, normalize(strimg, smin, smax))
+        print(f"End epoch {epoch}. loss={curr_loss}, num_strings={weights.sum()}")
+        with open(f"weights_{epoch}.dat", "wb") as f:
+            np.save(f, weights)
+
+    return weights
+            
 
 
 def compute_strings_baseline(
@@ -46,7 +188,7 @@ def compute_strings_baseline(
 
     print(influence.shape)
 
-    weights = np.sum(influence, axis=0) / (non_zero + 1e-9)
+    weights = np.sum(influence, axis=0)  # / (non_zero + 1e-9)
     print(weights.shape)
 
     return weights
@@ -67,9 +209,20 @@ def compute_strings(
     print(f"Image shape: {img_H} x {img_W}")
     connections = (num_nails - 1) * num_nails // 2
 
-    focus = np.array([1 if dist((j / img_W, 1 - i / img_H), (0.5, 0.5)) < 0.2 else 0.2 for j in range(img_W) for i in range(img_H)])
+    image = image.reshape(img_H * img_W)
+    image = (image - image.min()) / (image.max() - image.min())
 
-    T = np.stack((image.reshape(img_H * img_W), focus), axis=1)
+    influence = influence / influence.sum(axis=1).mean()
+
+    focus = np.array(
+        [
+            1 if dist((j / img_W, 1 - i / img_H), (0.5, 0.5)) < 0.2 else 0.2
+            for j in range(img_W)
+            for i in range(img_H)
+        ]
+    )
+
+    T = np.stack((image, focus), axis=1)
 
     zeroes = np.all(influence == 0, axis=1)
     influence = influence[~zeroes]
@@ -86,27 +239,28 @@ def compute_strings(
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=64)
     optimizer = torch.optim.Adam([weights], lr=LEARNING_RATE)
 
-    lambda_1 = 0 # 1e-5
+    lambda_1 = 0  # 1e-5
 
     for epoch in range(MAX_EPOCHS):
         print(f"Starting epoch {epoch}.")
         losses = []
         for batch in dataloader:
             x, t = batch
-            y = t[:,0]
-            f = t[:,1]
+            y = t[:, 0]
+            f = t[:, 1]
             # print(x)
             # print(y.shape)
             # sys.exit(0)
-            pos_weights = torch.nn.functional.softplus(weights, beta=20)
+            # pos_weights = torch.nn.functional.softplus(weights, beta=20)
+            sig_weights = torch.nn.functional.sigmoid(weights)
             # print(pos_weights)
             # print(x[0][x[0] > 0])
-            y_hat = torch.matmul(x, pos_weights)
+            y_hat = torch.matmul(x, sig_weights)
             # print(y_hat)
             # sys.exit(0)
             # print((y, y_hat))
-            pixel_loss = f * torch.nn.functional.mse_loss(y_hat, y)
-            loss = pixel_loss.mean() + lambda_1 * torch.norm(pos_weights, 1)
+            pixel_loss = torch.nn.functional.mse_loss(y_hat, y)
+            loss = pixel_loss.mean() + lambda_1 * torch.norm(weights, 1)
             losses.append(loss.item())
 
             optimizer.zero_grad()
@@ -139,7 +293,7 @@ def main():
 
     mask_fp = mask_path(args.height, args.width, args.num_nails, args.max_dist)
     if not exists(mask_fp):
-        print(f"Mask does not exist: {mask_fn}")
+        print(f"Mask does not exist: {mask_fp}")
         sys.exit(1)
 
     with open(mask_fp, "rb") as f:
@@ -149,22 +303,21 @@ def main():
     print(np.argmax(mask))
 
     image = load_image(args.image, args.height, args.width)
-    image = 1 - image
+    image = np.where(image > 0, 1 - image, -1)
     print(image)
     print(image.max())
     print(image.min())
 
-    max_dist = 0.05
-
     print(f"non-zero: {np.count_nonzero(mask)}")
-    nz = (mask > 0).astype(int)
-    print(np.sum(nz))
+    print(mask.shape)
+    # nz = (mask > 0).astype(int)
+    # print(np.sum(nz))
     print(np.max(mask))
-    mask = np.maximum(0, 1 - mask / max_dist) * nz
+    # mask = np.maximum(0, 1 - mask / max_dist) * nz
     print(f"non-zero: {np.count_nonzero(mask)}")
     print(np.mean(mask))
 
-    string_weight = compute_strings(image, mask, args.num_nails)
+    string_weight = compute_strings_discrete(image, mask, args.num_nails)
     with open("output.dat", "wb") as f:
         np.save(f, string_weight)
     return string_weight

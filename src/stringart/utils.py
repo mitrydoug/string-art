@@ -5,6 +5,11 @@ import numpy as np
 Point = Tuple[float, float]
 
 
+def connection_idx(m, n, num_nails):
+    # (t-1) + (t-2) + ... + (t-m) + n
+    # t * m - m * (m-1) / 2
+    return num_nails * m - (m + 1) * m // 2 + n - m - 1
+
 def nail_point(i: int, num_nails: int) -> Point:
     theta = 2 * np.pi * i / num_nails
     return ((np.cos(theta) + 1) / 2, (np.sin(theta) + 1) / 2)

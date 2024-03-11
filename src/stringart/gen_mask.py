@@ -6,7 +6,7 @@ from os.path import exists, join
 import numpy as np
 from tqdm import tqdm
 
-from .utils import chord_dist, dist, nail_point
+from .utils import chord_dist, dist, connection_idx, nail_point
 
 
 def mask_path(height, width, num_nails, max_dist):
@@ -14,12 +14,6 @@ def mask_path(height, width, num_nails, max_dist):
         "masks",
         f"mask_h={height}_w={width}_numnails={num_nails}_maxdist={max_dist}.npy",
     )
-
-
-def _connection_idx(m, n, num_nails):
-    # (t-1) + (t-2) + ... + (t-m) + n
-    # t * m - m * (m-1) / 2
-    return num_nails * m - (m + 1) * m // 2 + n - m - 1
 
 
 def compute_dist_mask(width, height, num_nails, max_dist) -> np.ndarray:
@@ -60,7 +54,7 @@ def compute_dist_mask(width, height, num_nails, max_dist) -> np.ndarray:
                 )
                 <= max_dist
             ):
-                conn_idx = _connection_idx(m, n, num_nails)
+                conn_idx = connection_idx(m, n, num_nails)
                 cdist = chord_dist(
                     nail_point(m, num_nails), nail_point(n, num_nails), (x, y)
                 )
