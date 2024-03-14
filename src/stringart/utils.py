@@ -6,13 +6,33 @@ Point = Tuple[float, float]
 
 
 def connection_idx(m, n, num_nails):
-    # (t-1) + (t-2) + ... + (t-m) + n
-    # t * m - m * (m-1) / 2
-    return num_nails * m - (m + 1) * m // 2 + n - m - 1
+    return m * (num_nails - 1) + n - (1 if n > m else 0)
 
 def nail_point(i: int, num_nails: int) -> Point:
     theta = 2 * np.pi * i / num_nails
     return ((np.cos(theta) + 1) / 2, (np.sin(theta) + 1) / 2)
+
+
+def string_chord(m, n, num_nails, nail_radius):
+
+    a = np.array(nail_point(m, num_nails))
+    b = np.array(nail_point(n, num_nails))
+
+    if a[0] == b[0]:
+        angle = 0 if a[1] < b[1] else np.pi
+    elif a[1] == b[1]:
+        angle = - np.pi / 2 if a[0] < b[0] else np.pi / 2
+    else:
+        slope = (b[1] - a[1]) / (b[0] - a[0])
+        orth_slope = -1.0 / slope
+        angle = np.arctan(orth_slope)
+        if a[0] < b[0]:
+            angle -= np.pi / 2
+        else:
+            angle += np.pi / 2
+
+    offset = np.array((np.cos(angle), np.sin(angle))) * nail_radius
+    return tuple(a+offset), tuple(b+offset)
 
 
 def dist(a: Point, b: Point):

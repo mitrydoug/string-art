@@ -8,3 +8,4 @@ __pycache__
 /src/masks
 /src/output.dat
 /src/weights*.dat
+/src/seq*.json
