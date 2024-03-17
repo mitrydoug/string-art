@@ -78,7 +78,7 @@ def optimize_order(seq: list[int], num_nails: int) -> list[int]:
         for i1, i2 in itertools.combinations(range(len(loops)), 2):
             l1 = loops[i1]
             l2 = loops[i2]
-            pos1 = [i for i, m in enumerate(l1) if m in set(l2)][-1]
+            pos1 = [i for i, m in enumerate(l1) if m in set(l2)][0]
             n = l1[pos1]
             pos2 = l2.index(n)
             print((pos1, n, pos2))
@@ -89,11 +89,11 @@ def optimize_order(seq: list[int], num_nails: int) -> list[int]:
 
     print(len(loops[0]))
     assert len(loops[0]) == len(seq)
-    return loops[0]
 
+    res = loops[0]
+    res = res[res.index(0):-1] + res[:res.index(0)+1]
 
-    
-
+    return res
 
 
 def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nails: int):
