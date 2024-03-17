@@ -4,8 +4,21 @@ import numpy as np
 
 Point = Tuple[float, float]
 
+def argmin(d):
+    m = min(d.items(), key=(lambda t: t[1]))
+    return m[0]
 
-def connection_idx(m, n, num_nails):
+def argmax(d):
+    m = max(d.items(), key=(lambda t: t[1]))
+    return m[0]
+
+def mse_loss(img, simg):
+    return ((img - simg) ** 2).sum()
+
+def normalize(arr: np.ndarray, min: float, max: float) -> np.ndarray:
+    return (arr - min) / (max - min)
+
+def connection_idx(m: int, n: int, num_nails: int) -> int:
     return m * (num_nails - 1) + n - (1 if n > m else 0)
 
 
