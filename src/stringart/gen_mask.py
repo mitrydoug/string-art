@@ -21,7 +21,8 @@ def compute_dist_mask(width, height, num_nails, nail_frac, max_dist) -> np.ndarr
 
     pixels = width * height
     connections = num_nails * (num_nails - 1)
-    nail_radius = 2 * np.pi / num_nails * nail_frac
+    # note: circle radius is 1/2
+    nail_radius = np.pi / num_nails * nail_frac
 
     d = dict()
 

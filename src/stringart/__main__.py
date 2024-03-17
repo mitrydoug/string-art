@@ -1,7 +1,9 @@
 import argparse
+import itertools
 import json
 import random
 import sys
+from collections import defaultdict, Counter
 from os.path import exists
 from typing import Callable
 
@@ -28,6 +30,72 @@ def load_image(fname, height, width):
     return plt.imread("grayscale.png")
 
 
+def argmin(d):
+    m = min(d.items(), key=(lambda t: t[1]))
+    return m[0]
+
+def argmax(d):
+    m = max(d.items(), key=(lambda t: t[1]))
+    return m[0]
+
+
+def optimize_order(seq: list[int], num_nails: int) -> list[int]:
+
+    print(Counter(seq))
+    assert len(set((seq[i], seq[i+1]) for i in range(len(seq)-1))) == len(seq)-1
+
+    print(len(set(seq)))
+    
+    graph = defaultdict(list)
+    for i in range(len(seq)-1):
+        assert seq[i+1] not in graph[seq[i]]
+        graph[seq[i]].append(seq[i+1])
+
+    print(Counter([len(v) for v in graph.values()]))
+
+    loops = []
+
+    while graph:
+
+        start = argmax({m: len(ns) for m, ns in graph.items()})
+
+        loop = [start]
+
+        while loop[-1] in graph:
+
+            m = loop[-1]
+            n = argmin({i: abs((i - m) % num_nails - num_nails // 2) for i in graph[m]})
+            loop.append(n)
+            graph[m].remove(n)
+            if len(graph[m]) == 0:
+                del graph[m]
+
+        loops.append(loop)
+
+    loops.sort(key=len, reverse=True)
+
+    while len(loops) > 1:
+        for i1, i2 in itertools.combinations(range(len(loops)), 2):
+            l1 = loops[i1]
+            l2 = loops[i2]
+            pos1 = [i for i, m in enumerate(l1) if m in set(l2)][-1]
+            n = l1[pos1]
+            pos2 = l2.index(n)
+            print((pos1, n, pos2))
+            l3 = l1[:pos1] + l2[pos2:-1] + l2[:pos2] + l1[pos1:]
+            loops[i1] = l3
+            loops.pop(i2)
+            break
+
+    print(len(loops[0]))
+    assert len(loops[0]) == len(seq)
+    return loops[0]
+
+
+    
+
+
+
 def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nails: int):
 
     def normalize(arr, min, max):
@@ -35,10 +103,6 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
 
     def loss(img, simg):
         return np.where(img >= 0, (img - simg) ** 2, 0).sum()
-
-    def argmin(d):
-        m = min(d.items(), key=(lambda t: t[1]))
-        return m[0]
     
     print(influence.shape)
 
@@ -160,7 +224,7 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
         with open(f"weights_{epoch}.dat", "wb") as f:
             np.save(f, weights)
         with open(f"seq_{epoch}.json", "w") as f:
-            json.dump(seq, f)
+            json.dump(optimize_order(seq, num_nails), f)
 
     return weights
 
