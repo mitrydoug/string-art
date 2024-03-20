@@ -9,6 +9,6 @@ __pycache__
 !/images/jake.png
 !/iamges/jake-string.png
 
-/src/masks
-/src/cycle*.json
-!/src/cycle_final.json
+/masks
+/cycle*.json
+!/cycle_final.json

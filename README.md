@@ -31,7 +31,7 @@ This will generate a file `./src/masks/mask_h=100_w=100_numnails=200_nailfrac=0.
 python -m stringarg.gen_mask -i jake.png -y 100 -x 100 -n 200 -d 0.01 -f 0.2
 ```
 
-This will generate several files `./src/cycle_*.json`. The final result is saved to `./src/cycle_final.json`. I have included in this repository the final result of the above example commands.
+This will generate several files `./cycle_*.json`. The final result is saved to `./cycle_final.json`. I have included in this repository the final result of the above example commands.
 
 ### Visualizing the result
 
