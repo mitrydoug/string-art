@@ -8,7 +8,6 @@ from tqdm import tqdm
 
 from .utils import chord_dist, dist, connection_idx, string_chord
 
-NAIL_FRAC = 0.2
 
 def mask_path(height, width, num_nails, nail_frac, max_dist):
     """A unique path name for a mask."""
