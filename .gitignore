@@ -7,8 +7,9 @@ __pycache__
 
 /images
 !/images/jake.png
-!/iamges/jake-string.png
+!/images/jake-string.png
 
 /masks
 /cycle*.json
 !/cycle_final.json
+/grayscale.png
