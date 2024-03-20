@@ -5,5 +5,10 @@
 __pycache__
 .ipynb_checkpoints
 
+/images
+!/images/jake.png
+!/iamges/jake-string.png
+
 /src/masks
 /src/cycle*.json
+!/src/cycle_final.json
