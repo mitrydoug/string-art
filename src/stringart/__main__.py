@@ -192,13 +192,9 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
                 # compute before and after loss
                 irow = image[nz]
                 srow = strimg[nz]
+                before = mse_loss(irow, normalize(srow, smin, smax))
                 srow += influence[np.ix_(nz, [am, mc])].sum(axis=1)
-                try:
-                    _smax = max(smax, srow.max())
-                except:
-                    print((a, middle, c))
-                    print(nz)
-                    raise 
+                _smax = max(smax, srow.max())
                 middle_loss = mse_loss(irow, normalize(srow, smin, _smax))
                 middle_losses[middle] = middle_loss
  
@@ -223,7 +219,7 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
 
         curr_loss = mse_loss(image, normalize(strimg, smin, smax))
         print(f"End epoch {epoch}. loss={curr_loss}, num_strings={weights.sum()}")
-        with open(join(output_dir, f"cycle_{epoch}.json", "w")) as f:
+        with open(join(output_dir, f"cycle_{epoch}.json"), "w") as f:
             json.dump(optimize_path(cycle, num_nails), f)
 
     return optimize_path(cycle)
@@ -259,7 +255,7 @@ def main():
     image = 1 - image
 
     cycle = compute_strings_discrete_loop(image, mask, args.num_nails, args.num_strings, args.output_dir)
-    with open(join(args.output_dir, "cycle_final.json"), "wb") as f:
+    with open(join(args.output_dir, "cycle_final.json"), "w") as f:
         json.dump(cycle, f)
 
 
