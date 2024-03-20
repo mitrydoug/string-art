@@ -1,5 +1,7 @@
 ## Recreate Images with String!
 
+
+
 This was a personal project of mine in early 2024.
 
 ### How to run
@@ -36,5 +38,7 @@ This will generate several files `./src/cycle_*.json`. The final result is saved
 Start a Jupyter Notebook, then open and run the `notebooks/StringArt.ipynb` notebook:
 
 ```bash
-python jupyter notebook
+jupyter notebook
 ```
+
+After interacting with the icanvas slider, you should see a result similar to the image above.
