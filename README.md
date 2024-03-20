@@ -1,6 +1,6 @@
 ## Recreate Images with String!
 
-
+![String Art of Jake Gyllenhaal](iamges/jake-string.png)
 
 This was a personal project of mine in early 2024.
 
