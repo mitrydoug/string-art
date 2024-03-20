@@ -6,11 +6,12 @@ from os.path import exists, join
 import numpy as np
 from tqdm import tqdm
 
-from .utils import chord_dist, dist, connection_idx, nail_point, string_chord
+from .utils import chord_dist, dist, connection_idx, string_chord
 
 NAIL_FRAC = 0.2
 
 def mask_path(height, width, num_nails, nail_frac, max_dist):
+    """A unique path name for a mask."""
     return join(
         "masks",
         f"mask_h={height}_w={width}_numnails={num_nails}_nailfrac={nail_frac}_maxdist={max_dist}.npy",
@@ -18,28 +19,44 @@ def mask_path(height, width, num_nails, nail_frac, max_dist):
 
 
 def compute_dist_mask(width, height, num_nails, nail_frac, max_dist) -> np.ndarray:
+    """Compute the (width * height) x connections "influence matrix" where each column C
+    represents the influence that connection C has on each pixel of a height x width
+    canvas.
+
+    params:
+      width: pixel width of canvas
+      height: pixel height of canvas
+      num_nails: the number of nails placed equidistant around the ring
+      nail_frac: the girth of each nail, expressed as the fraction of the arc between adjacent
+        nails occupied by the diameter of one nail (see conversion to nail_radius below)
+      max_dist: the maximum distance at which a connection (i.e. as string) imparts influence on
+        a particular pixel. If a pixel is > max_dist from a string, the strings influence on it
+        is zero.
+    """
 
     pixels = width * height
     connections = num_nails * (num_nails - 1)
-    # note: circle radius is 1/2
+    # note: radius of our ring is 1/2
     nail_radius = np.pi / num_nails * nail_frac
-
-    d = dict()
 
     X = np.zeros((pixels, connections))
 
     for i, j in tqdm(np.ndindex(height, width), total=pixels):
+        # for each pixel
         y = 1 - i / height
         x = j / width
         if dist((x, y), (0.5, 0.5)) > 0.5:
+            # ignore pixels outside of ring
             continue
-        # print(f"i={i}, j={j}")
+
         pixel_idx = i * width + j
 
+        # mark tells us a good starting point for n for a new value of m
         mark = 1
         for m in range(num_nails):
-            # print(f"m={m}")
+
             n = max(mark, m + 1) % num_nails
+            # increase n until string comes close enough to current pixel
             while (
                 n != m
                 and chord_dist(
@@ -50,6 +67,8 @@ def compute_dist_mask(width, height, num_nails, nail_frac, max_dist) -> np.ndarr
                 n = (n+1) % num_nails
 
             mark = n
+
+            # record cords which have an influene on our pixel 
             while (
                 n != m
                 and chord_dist(
@@ -61,12 +80,6 @@ def compute_dist_mask(width, height, num_nails, nail_frac, max_dist) -> np.ndarr
                 cdist = chord_dist(
                     *string_chord(m, n, num_nails, nail_radius), (x, y)
                 )
-                if (pixel_idx, conn_idx) in d:
-                    print((pixel_idx, conn_idx))
-                    print(d[(pixel_idx, conn_idx)])
-                    print((i, j, m, n))
-                    sys.exit(0)
-                d[(pixel_idx, conn_idx)] = (i, j, m, n)
 
                 X[pixel_idx, conn_idx] += 1 - cdist / max_dist
                 n = (n + 1) % num_nails
