@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from .gen_mask import mask_path
-from .utils import argmax, argmin, connection_idx, mse_loss, normalize 
+from .utils import argmax, argmin, connection_idx, mse_loss, normalize
 
 
 def load_image(fname, height, width):
@@ -26,11 +26,11 @@ def load_image(fname, height, width):
 
 
 def optimize_path(seq: list[int], num_nails: int) -> list[int]:
-    
+
     # directed adjacency list representation
     graph = defaultdict(list)
-    for i in range(len(seq)-1):
-        graph[seq[i]].append(seq[i+1])
+    for i in range(len(seq) - 1):
+        graph[seq[i]].append(seq[i + 1])
 
     # partition graph edges into collection of cycles
     cycles = []
@@ -43,7 +43,7 @@ def optimize_path(seq: list[int], num_nails: int) -> list[int]:
         cycle = [start]
 
         while cycle[-1] in graph:
-            
+
             m = cycle[-1]
             # choose next node furthest possible across ring
             n = argmin({i: abs((i - m) % num_nails - num_nails // 2) for i in graph[m]})
@@ -76,14 +76,20 @@ def optimize_path(seq: list[int], num_nails: int) -> list[int]:
             break
 
     res = cycles[0]
-    res = res[res.index(0):-1] + res[:res.index(0)+1]
+    res = res[res.index(0) : -1] + res[: res.index(0) + 1]
 
     return res
 
 
-def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nails: int, num_strings: int, output_dir: str) -> list[int]:
+def compute_strings_discrete_loop(
+    image: np.array,
+    influence: np.array,
+    num_nails: int,
+    num_strings: int,
+    output_dir: str,
+) -> list[int]:
     """Compute a cycle which optimizes the mean-squared error between string image approximation and reference image.
-    
+
     params:
       image: H x W image array
       influence: (H*W) x num_connections array, each column C represents the influence connection C
@@ -93,7 +99,7 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
       output_dir: directory location where checkpoint sequences should be saved
     """
 
-    # i -> j and j -> i treated as unique connections    
+    # i -> j and j -> i treated as unique connections
     num_connections = (num_nails - 1) * num_nails
     # for each connection, store a mask of image pixels influenced by the connection.
     # used for optimization
@@ -107,7 +113,7 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
 
     # generate a random starting sequence. Don't allow a repeated edge.
     # Note: 12 -> 15 and 15 -> 12 are distinct connections
-    avail = {i: set(range(num_nails)) - {i} for i in range(num_nails)}
+    avail = {i: set(range(num_nails)) - {(i-1) % num_nails, i, (i+1) % num_nails} for i in range(num_nails)}
     cycle = [0]
     for i in range(num_strings - 1):
         if i < num_strings - 2:
@@ -173,15 +179,16 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
 
             # find the best node to replace b as the "middle" node
             # in the original triangle
-            middle_losses = {}
+            loss_deltas = {}
             for middle in range(num_nails):
-                if middle == a or middle == c:
+                if abs(middle - a) <= 1 or abs(middle - c) <= 1:
+                    # middle cannot be a, b, or neighbors of a or b
                     continue
                 am = connection_idx(a, middle, num_nails)
                 mc = connection_idx(middle, c, num_nails)
                 if weights[am] == 1 or weights[mc] == 1:
                     # can't traverse a connection (aka edge) twice
-                    # in the cycle 
+                    # in the cycle
                     continue
 
                 # all pixels influenced by a->middle or middle->c
@@ -195,16 +202,16 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
                 before = mse_loss(irow, normalize(srow, smin, smax))
                 srow += influence[np.ix_(nz, [am, mc])].sum(axis=1)
                 _smax = max(smax, srow.max())
-                middle_loss = mse_loss(irow, normalize(srow, smin, _smax))
-                middle_losses[middle] = middle_loss
- 
-            best_middle = argmin(middle_losses)
+                after = mse_loss(irow, normalize(srow, smin, _smax))
+                loss_deltas[middle] = after - before
 
-            if best_middle != cycle[pos+1]:
+            best_middle = argmin(loss_deltas)
+
+            if best_middle != cycle[pos + 1]:
                 # we're making a change
                 improving = True
 
-            cycle[pos+1] = best_middle
+            cycle[pos + 1] = best_middle
             am = connection_idx(a, best_middle, num_nails)
             mc = connection_idx(best_middle, c, num_nails)
 
@@ -222,7 +229,7 @@ def compute_strings_discrete_loop(image: np.array, influence: np.array, num_nail
         with open(join(output_dir, f"cycle_{epoch}.json"), "w") as f:
             json.dump(optimize_path(cycle, num_nails), f)
 
-    return optimize_path(cycle)
+    return optimize_path(cycle, num_nails)
 
 
 def parse_args():
@@ -242,7 +249,9 @@ def parse_args():
 def main():
     args = parse_args()
 
-    mask_fp = mask_path(args.height, args.width, args.num_nails, args.nail_frac, args.max_dist)
+    mask_fp = mask_path(
+        args.height, args.width, args.num_nails, args.nail_frac, args.max_dist
+    )
     if not exists(mask_fp):
         print(f"Mask does not exist: {mask_fp}")
         sys.exit(1)
@@ -254,7 +263,9 @@ def main():
     # we want light pixels to be 0 and dark pixels to be 1
     image = 1 - image
 
-    cycle = compute_strings_discrete_loop(image, mask, args.num_nails, args.num_strings, args.output_dir)
+    cycle = compute_strings_discrete_loop(
+        image, mask, args.num_nails, args.num_strings, args.output_dir
+    )
     with open(join(args.output_dir, "cycle_final.json"), "w") as f:
         json.dump(cycle, f)
 
