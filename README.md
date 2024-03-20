@@ -15,7 +15,7 @@ python -m pip install -r requirements.txt
 export PYTHONPATH=$PYTHONPATH:$(abspath ./src)
 ```
 
-Find an image you want to stringify! I recommend a square photo with a centered face, with lighthing that provides contrast to facial features. Also, a background that is uniform and mid-brightness will help. I have supplied an example photo of actor Jake Gyllenhaal `./jake.png`.
+Find an image you want to stringify! I recommend a square photo with a centered face, with lighthing that provides contrast to facial features. Also, a background that is uniform and mid-brightness will help. I have supplied an example photo of actor Jake Gyllenhaal `./images/jake.png`.
 
 **Step 1:** generate a mask. The reason this step is separate is because it is an expensive operation. I suggest running the command with the following parameters:
 
