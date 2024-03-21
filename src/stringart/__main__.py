@@ -181,9 +181,15 @@ def compute_strings_discrete_loop(
             # in the original triangle
             loss_deltas = {}
             for middle in range(num_nails):
-                if abs(middle - a) <= 1 or abs(middle - c) <= 1:
-                    # middle cannot be a, b, or neighbors of a or b
+                if (
+                    middle in (
+                        a, (a+1)%num_nails, (a-1)%num_nails,
+                        c, (c+1)%num_nails, (c-1)%num_nails,
+                    )
+                ):
+                    # middle cannot be a, c, or neighbors of a or c
                     continue
+                    
                 am = connection_idx(a, middle, num_nails)
                 mc = connection_idx(middle, c, num_nails)
                 if weights[am] == 1 or weights[mc] == 1:
@@ -197,13 +203,14 @@ def compute_strings_discrete_loop(
                     continue
 
                 # compute before and after loss
-                irow = image[nz]
-                srow = strimg[nz]
-                before = mse_loss(irow, normalize(srow, smin, smax))
-                srow += influence[np.ix_(nz, [am, mc])].sum(axis=1)
-                _smax = max(smax, srow.max())
-                after = mse_loss(irow, normalize(srow, smin, _smax))
+                before = mse_loss(image[nz], normalize(strimg[nz], smin, smax))
+                infl = influence[np.ix_(nz, [am, mc])].sum(axis=1)
+                strimg[nz] += infl
+                _smin = strimg.min()
+                _smax = strimg.max()
+                after = mse_loss(image[nz], normalize(strimg[nz], _smin, _smax))
                 loss_deltas[middle] = after - before
+                strimg[nz] -= infl
 
             best_middle = argmin(loss_deltas)
 
@@ -223,6 +230,13 @@ def compute_strings_discrete_loop(
             strimg[nonzero[mc]] += influence[nonzero[mc], mc]
             smin = strimg.min()
             smax = strimg.max()
+
+            new_loss = mse_loss(image, normalize(strimg, smin, smax))
+            if new_loss > curr_loss and not np.allclose(new_loss, curr_loss):
+                print("Regression!")
+                print((a, b, c, best_middle, new_loss, curr_loss))
+            curr_loss = new_loss
+
 
         curr_loss = mse_loss(image, normalize(strimg, smin, smax))
         print(f"End epoch {epoch}. loss={curr_loss}, num_strings={weights.sum()}")
