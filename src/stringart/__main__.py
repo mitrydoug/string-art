@@ -113,7 +113,10 @@ def compute_strings_discrete_loop(
 
     # generate a random starting sequence. Don't allow a repeated edge.
     # Note: 12 -> 15 and 15 -> 12 are distinct connections
-    avail = {i: set(range(num_nails)) - {(i-1) % num_nails, i, (i+1) % num_nails} for i in range(num_nails)}
+    avail = {
+        i: set(range(num_nails)) - {(i - 1) % num_nails, i, (i + 1) % num_nails}
+        for i in range(num_nails)
+    }
     cycle = [0]
     for i in range(num_strings - 1):
         if i < num_strings - 2:
@@ -143,6 +146,7 @@ def compute_strings_discrete_loop(
     strimg = np.matmul(influence, weights)
     smin = strimg.min()
     smax = strimg.max()
+
     curr_loss = mse_loss(image, normalize(strimg, smin, smax))
     print(f"Starting optimizer. loss={curr_loss}, num_strings={weights.sum()}")
 
@@ -176,20 +180,23 @@ def compute_strings_discrete_loop(
             strimg[nonzero[bc]] -= influence[nonzero[bc], bc]
             smin = strimg.min()
             smax = strimg.max()
+            before = mse_loss(image, normalize(strimg, smin, smax))
 
             # find the best node to replace b as the "middle" node
             # in the original triangle
             loss_deltas = {}
             for middle in range(num_nails):
-                if (
-                    middle in (
-                        a, (a+1)%num_nails, (a-1)%num_nails,
-                        c, (c+1)%num_nails, (c-1)%num_nails,
-                    )
+                if middle in (
+                    a,
+                    (a + 1) % num_nails,
+                    (a - 1) % num_nails,
+                    c,
+                    (c + 1) % num_nails,
+                    (c - 1) % num_nails,
                 ):
                     # middle cannot be a, c, or neighbors of a or c
                     continue
-                    
+
                 am = connection_idx(a, middle, num_nails)
                 mc = connection_idx(middle, c, num_nails)
                 if weights[am] == 1 or weights[mc] == 1:
@@ -203,13 +210,18 @@ def compute_strings_discrete_loop(
                     continue
 
                 # compute before and after loss
-                before = mse_loss(image[nz], normalize(strimg[nz], smin, smax))
+                rbefore = mse_loss(image[nz], normalize(strimg[nz], smin, smax))
                 infl = influence[np.ix_(nz, [am, mc])].sum(axis=1)
                 strimg[nz] += infl
                 _smin = strimg.min()
                 _smax = strimg.max()
-                after = mse_loss(image[nz], normalize(strimg[nz], _smin, _smax))
-                loss_deltas[middle] = after - before
+                if (_smin, _smax) == (smin, smax):
+                    rafter = mse_loss(image[nz], normalize(strimg[nz], smin, smax))
+                    loss_deltas[middle] = rafter - rbefore
+                else:
+                    after = mse_loss(image, normalize(strimg, _smin, _smax))
+                    loss_deltas[middle] = after - before
+
                 strimg[nz] -= infl
 
             best_middle = argmin(loss_deltas)
@@ -236,7 +248,6 @@ def compute_strings_discrete_loop(
                 print("Regression!")
                 print((a, b, c, best_middle, new_loss, curr_loss))
             curr_loss = new_loss
-
 
         curr_loss = mse_loss(image, normalize(strimg, smin, smax))
         print(f"End epoch {epoch}. loss={curr_loss}, num_strings={weights.sum()}")
