@@ -2,7 +2,7 @@
 
 ![String Art of Jake Gyllenhaal](images/jake-string.png)
 
-This was a personal project of mine in early 2024.
+This was a personal project of mine in early 2024. The code was not refactored or optimized much beyond the first working prototype, by intention.
 
 ### How to run
 
