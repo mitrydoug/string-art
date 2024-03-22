@@ -216,9 +216,11 @@ def compute_strings_discrete_loop(
                 _smin = strimg.min()
                 _smax = strimg.max()
                 if (_smin, _smax) == (smin, smax):
+                    # loss only changes for candidate strings
                     rafter = mse_loss(image[nz], normalize(strimg[nz], smin, smax))
                     loss_deltas[middle] = rafter - rbefore
                 else:
+                    # loss changes for entire strimg
                     after = mse_loss(image, normalize(strimg, _smin, _smax))
                     loss_deltas[middle] = after - before
 
@@ -242,12 +244,6 @@ def compute_strings_discrete_loop(
             strimg[nonzero[mc]] += influence[nonzero[mc], mc]
             smin = strimg.min()
             smax = strimg.max()
-
-            new_loss = mse_loss(image, normalize(strimg, smin, smax))
-            if new_loss > curr_loss and not np.allclose(new_loss, curr_loss):
-                print("Regression!")
-                print((a, b, c, best_middle, new_loss, curr_loss))
-            curr_loss = new_loss
 
         curr_loss = mse_loss(image, normalize(strimg, smin, smax))
         print(f"End epoch {epoch}. loss={curr_loss}, num_strings={weights.sum()}")
